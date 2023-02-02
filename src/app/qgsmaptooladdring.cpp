@@ -19,6 +19,7 @@
 #include "qgslinestring.h"
 #include "qgsmapcanvas.h"
 #include "qgsproject.h"
+#include "qgsvectordataprovider.h"
 #include "qgscurvepolygon.h"
 #include "qgsvectorlayer.h"
 #include "qgsvectorlayereditutils.h"
@@ -69,8 +70,24 @@ void QgsMapToolAddRing::polygonCaptured( const QgsCurvePolygon *polygon )
     return;
 
   vlayer->beginEditCommand( tr( "Ring added" ) );
+
+  //does compoundcurve contain circular strings?
+  //does provider support circular strings?
+  const bool hasCurvedSegments = polygon->hasCurvedSegments();
+  const bool providerSupportsCurvedSegments = vlayer->dataProvider()->capabilities() & QgsVectorDataProvider::CircularGeometries;
+
+  QgsCurve *curveToAdd = nullptr;
+  if ( hasCurvedSegments && providerSupportsCurvedSegments )
+  {
+    curveToAdd = polygon->exteriorRing()->clone();
+  }
+  else
+  {
+    curveToAdd = polygon->exteriorRing()->curveToLine();
+  }
+
   QgsVectorLayerEditUtils utils( vlayer );
-  const Qgis::GeometryOperationResult addRingReturnCode = utils.addRingV2( polygon->exteriorRing()->clone(), vlayer->selectedFeatureIds() );
+  const Qgis::GeometryOperationResult addRingReturnCode = utils.addRingV2( curveToAdd, vlayer->selectedFeatureIds() );
   QString errorMessage;
   switch ( addRingReturnCode )
   {
